@@ -5,6 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import Table, MetaData, Column, Integer, String, Float, inspect, text
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql.elements import quoted_name
 from .database import engine
 import pandas as pd
 import io
@@ -17,6 +18,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+@app.get("/schemas")
+def get_schemas():
+    with engine.connect() as connection:
+        result = connection.execute(text("SELECT schema_name FROM information_schema.schemata"))
+        schemas = [row[0] for row in result.fetchall()]
+    return {"schemas": schemas}
+
+@app.post("/create_schema/{schema_name}")
+def create_schema(schema_name: str):
+    with engine.connect() as connection:
+        connection.execute(text(f"CREATE SCHEMA {quoted_name(schema_name, quote=True)}"))
+        connection.commit()
+    return {"message": f"Schema {schema_name} created successfully"}
 
 @app.get("/tables")
 def get_tables():
