@@ -1,22 +1,26 @@
 import os
 import tempfile
 import zipfile
+import json
+import io
+from uuid import UUID
+
 from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File
 from fastapi.responses import Response
-from uuid import UUID
 from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Float, inspect, text
 from geoalchemy2 import Geometry
+from geoalchemy2.shape import from_shape
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql.elements import quoted_name
-from .database import engine
 import pandas as pd
 import geopandas as gpd
-from shapely import wkb, wkt
-from shapely.geometry.base import BaseGeometry
+from shapely.geometry import shape
 from pandas.api.types import is_integer_dtype, is_float_dtype, is_object_dtype
-import io
+from pyproj import CRS
+
+from .database import engine
 
 app = FastAPI()
 app.add_middleware(
@@ -93,6 +97,57 @@ async def import_data(schema_name: str, table_name: str, file: UploadFile = File
 
     return {"message": "Data imported successfully"}
 
+@app.post("/import_geojson/{schema_name}/{table_name}")
+async def import_geojson(schema_name: str, table_name: str, file: UploadFile = File(...)):
+    if not file.filename.endswith('.geojson'):
+        raise HTTPException(status_code=400, detail="Invalid file format")
+
+    geojson = json.loads(file.file.read().decode('utf-8'))
+    features = geojson['features']
+
+    # Get the CRS from the GeoJSON, if it exists
+    crs = geojson.get('crs', {})
+    srid = 4326  # Default to WGS84
+    if crs:
+        crs_name = crs.get('properties', {}).get('name', '')
+        try:
+            srid = CRS.from_string(crs_name).to_epsg()
+        except:
+            pass
+
+    metadata = MetaData()
+
+    # Create a new table with a geometry column and columns based on the properties of the GeoJSON
+    columns = [Column('id', Integer, primary_key=True),
+               Column('geometry', Geometry('GEOMETRY', srid=srid))]
+
+    # Add columns based on the properties of the first feature
+    if features:
+        properties = features[0]['properties']
+        for key, value in properties.items():
+            print(f"{key} {value}")
+            if is_integer_dtype(type(value)):
+                columns.append(Column(key, Integer))
+            elif is_float_dtype(type(value)):
+                columns.append(Column(key, Float))
+            elif is_object_dtype(type(value)):
+                columns.append(Column(key, String))
+            else:
+                columns.append(Column(key, String))
+
+    table = Table(table_name, metadata, *columns, schema=schema_name)
+    table.create(engine)
+
+    # Insert data into the table
+    with engine.connect() as connection:
+        for feature in features:
+            geom = from_shape(shape(feature['geometry']), srid=srid)
+            properties = feature['properties']
+            properties['geometry'] = geom
+            connection.execute(table.insert().values(**properties))
+        connection.commit()
+
+    return {"message": "GeoJSON data imported successfully"}
 
 @app.delete("/table/{schema_name}/{table_name}")
 def delete_table(schema_name: str, table_name: str):
