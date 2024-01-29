@@ -1,13 +1,21 @@
+import os
+import tempfile
+import zipfile
 from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File
 from fastapi.responses import Response
 from uuid import UUID
 from starlette.middleware.cors import CORSMiddleware
-from sqlalchemy import Table, MetaData, Column, Integer, String, Float, inspect, text
+from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Float, inspect, text
+from geoalchemy2 import Geometry
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql.elements import quoted_name
 from .database import engine
 import pandas as pd
+import geopandas as gpd
+from shapely import wkb, wkt
+from shapely.geometry.base import BaseGeometry
+from pandas.api.types import is_integer_dtype, is_float_dtype, is_object_dtype
 import io
 
 app = FastAPI()
@@ -33,28 +41,27 @@ def create_schema(schema_name: str):
         connection.commit()
     return {"message": f"Schema {schema_name} created successfully"}
 
-@app.get("/tables")
-def get_tables():
+@app.get("/tables/{schema_name}")
+def get_tables(schema_name: str):
     inspector = inspect(engine)
-    tables = inspector.get_table_names()
+    tables = inspector.get_table_names(schema=schema_name)
     return {"tables": tables}
 
-@app.get("/table/{table_name}")
-def get_table(table_name: str):
+@app.get("/table/{schema_name}/{table_name}")
+def get_table(schema_name: str, table_name: str):
     inspector = inspect(engine)
-    columns = inspector.get_columns(table_name)
-    # print(columns)
+    columns = inspector.get_columns(table_name, schema=schema_name)
     schema = {column['name']: str(column['type']) for column in columns}
 
     with engine.connect() as connection:
-        query = text(f"SELECT * FROM {table_name} LIMIT 10")
+        query = text(f"SELECT * FROM {quoted_name(schema_name, quote=True)}.{quoted_name(table_name, quote=True)} LIMIT 10")
         result = connection.execute(query)
         rows = [list(row) for row in result.fetchall()]
 
     return {"schema": schema, "rows": rows}
 
-@app.post("/import/{table_name}")
-async def import_data(table_name: str, file: UploadFile = File(...)):
+@app.post("/import/{schema_name}/{table_name}")
+async def import_data(schema_name: str, table_name: str, file: UploadFile = File(...)):
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file format")
 
@@ -74,7 +81,7 @@ async def import_data(table_name: str, file: UploadFile = File(...)):
         else:
             columns.append(Column(column_name, NullType))
 
-    table = Table(table_name, metadata, *columns)
+    table = Table(table_name, metadata, *columns, schema=schema_name)
     table.create(engine)
 
     # Insert data into the table
@@ -86,14 +93,15 @@ async def import_data(table_name: str, file: UploadFile = File(...)):
 
     return {"message": "Data imported successfully"}
 
-@app.delete("/table/{table_name}")
-def delete_table(table_name: str):
+
+@app.delete("/table/{schema_name}/{table_name}")
+def delete_table(schema_name: str, table_name: str):
     inspector = inspect(engine)
-    tables = inspector.get_table_names()
+    tables = inspector.get_table_names(schema=schema_name)
     if table_name not in tables:
         raise HTTPException(status_code=400, detail="Table not found")
 
     metadata = MetaData()
-    table = Table(table_name, metadata, autoload_with=engine)
+    table = Table(table_name, metadata, autoload_with=engine, schema=schema_name)
     table.drop(engine)
     return {"message": f"Table {table_name} deleted successfully"}
