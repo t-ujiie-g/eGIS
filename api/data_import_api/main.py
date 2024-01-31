@@ -149,6 +149,70 @@ async def import_geojson(schema_name: str, table_name: str, file: UploadFile = F
 
     return {"message": "GeoJSON data imported successfully"}
 
+@app.post("/import_shapefile/{schema_name}/{table_name}")
+async def import_shapefile(schema_name: str, table_name: str, file: UploadFile = File(...)):
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="Invalid file format")
+
+    # Unzip the shapefile
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        with zipfile.ZipFile(io.BytesIO(file.file.read())) as zip_ref:
+            zip_ref.extractall(tmpdirname)
+        
+        # Recursively find the .shp file in the extracted files
+        shapefile_path = None
+        for root, dirs, files in os.walk(tmpdirname):
+            for filename in files:
+                if filename.endswith('.shp'):
+                    shapefile_path = os.path.join(root, filename)
+                    break
+            if shapefile_path:
+                break
+        
+        if shapefile_path is None:
+            raise HTTPException(status_code=400, detail="No .shp file found in the zip")
+
+        # Read the shapefile into a GeoDataFrame
+        gdf = gpd.read_file(shapefile_path)
+
+    # Get the CRS from the GeoDataFrame
+    srid = gdf.crs.to_epsg() if gdf.crs else 4326  # Default to WGS84
+
+    metadata = MetaData()
+
+    # Create a new table with a geometry column and columns based on the GeoDataFrame
+    columns = [
+        Column('id', Integer, primary_key=True),
+        Column('geometry', Geometry('GEOMETRY', srid=srid)),
+    ]
+
+    # Add columns based on the properties of the GeoDataFrame
+    for column_name, dtype in zip(gdf.columns, gdf.dtypes):
+        if dtype == 'int64':
+            columns.append(Column(column_name, Integer))
+        elif dtype == 'float':
+            columns.append(Column(column_name, Float))
+        elif dtype == 'object':
+            columns.append(Column(column_name, String))
+        elif dtype == 'geometry':
+            pass
+        else:
+            columns.append(Column(column_name, String))
+
+    table = Table(table_name, metadata, *columns, schema=schema_name)
+    table.create(engine)
+
+    # Insert data into the table
+    with engine.connect() as connection:
+        for index, row in gdf.iterrows():
+            geom = from_shape(row['geometry'], srid=srid) if row['geometry'] else None
+            row_data = row.to_dict()
+            row_data['geometry'] = geom
+            connection.execute(table.insert().values(**row_data))
+        connection.commit()
+
+    return {"message": "Shapefile data imported successfully"}
+
 @app.delete("/table/{schema_name}/{table_name}")
 def delete_table(schema_name: str, table_name: str):
     inspector = inspect(engine)

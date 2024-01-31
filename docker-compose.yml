@@ -25,3 +25,13 @@ services:
     environment:
       POSTGRES_DB: data_import
       POSTGRES_PASSWORD: password
+
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.25.x
+    container_name: data-import-geoserver
+    ports:
+      - 8080:8080
+    links:
+      - db
+    volumes:
+      - ./geoserver/data_dir:/opt/geoserver/data_dir
