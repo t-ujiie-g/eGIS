@@ -3,6 +3,7 @@ import tempfile
 import zipfile
 import json
 import io
+import requests
 from uuid import UUID
 
 from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File
@@ -18,9 +19,11 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import shape
 from pandas.api.types import is_integer_dtype, is_float_dtype, is_object_dtype
+from pydantic import BaseModel
 from pyproj import CRS
 
 from .database import engine
+from . import config
 
 app = FastAPI()
 app.add_middleware(
@@ -30,6 +33,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+class DataStore(BaseModel):
+    workspace_name: str
+    datastore_name: str
 
 @app.get("/schemas")
 def get_schemas():
@@ -224,3 +231,30 @@ def delete_table(schema_name: str, table_name: str):
     table = Table(table_name, metadata, autoload_with=engine, schema=schema_name)
     table.drop(engine)
     return {"message": f"Table {table_name} deleted successfully"}
+
+# GeoServerにデータストアを登録
+@app.post("/create_datastore/")
+async def create_datastore(workspace_name: str, datastore_name: str, schema_name: str):
+    headers = {'Content-type': 'text/xml'}
+    datastore_xml = f"""
+<dataStore>
+  <name>{datastore_name}</name>
+  <connectionParameters>
+    <host>{config.DB_HOST}</host>
+    <port>{config.DB_PORT}</port>
+    <database>{config.DB_NAME}</database>
+    <user>{config.DB_USER_NAME}</user>
+    <passwd>{config.DB_USER_PASS}</passwd>
+    <dbtype>postgis</dbtype>
+    <schema>{schema_name}</schema>
+  </connectionParameters>
+</dataStore>
+"""
+
+    url = f"{config.GEOSERVER_URL}/rest/workspaces/{workspace_name}/datastores"
+    response = requests.post(url, headers=headers, data=datastore_xml, auth=(config.GEOSERVER_USER_NAME, config.GEOSERVER_USER_PASS))
+
+    if response.status_code == 201:
+        return {"message": "データストアが正常に作成されました。"}
+    else:
+        raise HTTPException(status_code=400, detail=f"データストアの作成に失敗しました。ステータスコード: {response.status_code}, メッセージ: {response.text}")
