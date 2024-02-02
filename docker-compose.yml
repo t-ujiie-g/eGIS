@@ -34,3 +34,19 @@ services:
       - ./geoserver/data_dir:/opt/geoserver/data_dir
       - ./geoserver/geowebcache_cache_dir:/opt/geoserver/data_dir/gwc
       - ./geoserver/logs:/opt/geoserver/data_dir/logs
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nextjs-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/webgis-app:/app
+      - /app/node_modules
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - api
