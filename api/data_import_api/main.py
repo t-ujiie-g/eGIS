@@ -232,6 +232,24 @@ def delete_table(schema_name: str, table_name: str):
     table.drop(engine)
     return {"message": f"Table {table_name} deleted successfully"}
 
+
+@app.post("/create_workspace/")
+async def create_workspace(workspace_name: str):
+    headers = {'Content-type': 'text/xml'}
+    workspace_xml = f"""
+<workspace>
+  <name>{workspace_name}</name>
+</workspace>
+"""
+
+    url = f"{config.GEOSERVER_URL}/rest/workspaces"
+    response = requests.post(url, headers=headers, data=workspace_xml, auth=(config.GEOSERVER_USER_NAME, config.GEOSERVER_USER_PASS))
+
+    if response.status_code == 201:
+        return {"message": "ワークスペースが正常に作成されました。"}
+    else:
+        raise HTTPException(status_code=response.status_code, detail=f"ワークスペースの作成に失敗しました。ステータスコード: {response.status_code}, メッセージ: {response.text}")
+
 # GeoServerにデータストアを登録
 @app.post("/create_datastore/")
 async def create_datastore(workspace_name: str, datastore_name: str, schema_name: str):
@@ -258,3 +276,26 @@ async def create_datastore(workspace_name: str, datastore_name: str, schema_name
         return {"message": "データストアが正常に作成されました。"}
     else:
         raise HTTPException(status_code=400, detail=f"データストアの作成に失敗しました。ステータスコード: {response.status_code}, メッセージ: {response.text}")
+
+
+@app.post("/publish_service/")
+async def publish_service(workspace_name: str, datastore_name: str, table_name: str):
+    headers = {'Content-type': 'text/xml'}
+    featuretype_xml = f"""
+<featureType>
+  <name>{table_name}</name>
+  <nativeName>{table_name}</nativeName>
+  <title>{table_name}</title>
+  <srs>EPSG:3857</srs>
+  <enabled>true</enabled>
+</featureType>
+"""
+
+    url = f"{config.GEOSERVER_URL}/rest/workspaces/{workspace_name}/datastores/{datastore_name}/featuretypes"
+    response = requests.post(url, headers=headers, data=featuretype_xml, auth=(config.GEOSERVER_USER_NAME, config.GEOSERVER_USER_PASS))
+
+    if response.status_code == 201:
+        return {"message": f"テーブル '{table_name}' がデータストア '{datastore_name}' に正常に公開されました。"}
+    else:
+        raise HTTPException(status_code=response.status_code, detail=f"テーブルの公開に失敗しました。ステータスコード: {response.status_code}, メッセージ: {response.text}")
+    

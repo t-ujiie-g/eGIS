@@ -11,8 +11,7 @@ services:
     ports:
       - "8001:8000"
     depends_on:
-      db:
-        condition: service_started
+      - db
 
   db:
     image: postgis/postgis:16-3.4
@@ -31,7 +30,7 @@ services:
     container_name: data-import-geoserver
     ports:
       - 8080:8080
-    links:
-      - db
     volumes:
       - ./geoserver/data_dir:/opt/geoserver/data_dir
+      - ./geoserver/geowebcache_cache_dir:/opt/geoserver/data_dir/gwc
+      - ./geoserver/logs:/opt/geoserver/data_dir/logs
