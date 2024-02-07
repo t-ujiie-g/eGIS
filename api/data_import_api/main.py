@@ -286,7 +286,14 @@ async def publish_service(workspace_name: str, datastore_name: str, table_name: 
   <name>{table_name}</name>
   <nativeName>{table_name}</nativeName>
   <title>{table_name}</title>
-  <srs>EPSG:3857</srs>
+  <srs>EPSG:4326</srs>
+  <latLonBoundingBox>
+    <minx>-180</minx>
+    <maxx>180</maxx>
+    <miny>-90</miny>
+    <maxy>90</maxy>
+    <crs>EPSG:4326</crs>
+  </latLonBoundingBox>
   <enabled>true</enabled>
 </featureType>
 """
@@ -298,4 +305,18 @@ async def publish_service(workspace_name: str, datastore_name: str, table_name: 
         return {"message": f"テーブル '{table_name}' がデータストア '{datastore_name}' に正常に公開されました。"}
     else:
         raise HTTPException(status_code=response.status_code, detail=f"テーブルの公開に失敗しました。ステータスコード: {response.status_code}, メッセージ: {response.text}")
+
+@app.delete("/delete_layer/{workspace_name}/{layer_name}")
+async def delete_layer(workspace_name: str, layer_name: str):
+    # GeoServer REST APIを使用してレイヤーを削除
+    url = f"{config.GEOSERVER_URL}/rest/layers/{workspace_name}:{layer_name}"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    response = requests.delete(url, auth=(config.GEOSERVER_USER_NAME, config.GEOSERVER_USER_PASS), headers=headers)
     
+    if response.status_code == 200 or response.status_code == 202:
+        return {"message": f"Layer {layer_name} in workspace {workspace_name} deleted successfully."}
+    else:
+        # GeoServerからのエラーレスポンスをそのまま返す
+        return HTTPException(status_code=response.status_code, detail=response.text)

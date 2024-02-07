@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import DeleteConfirmModal from './deleteConfirmModal';
-import { API_URL, DB_SCHEMA } from './config';
+import { API_URL, DB_SCHEMA, GEOSERVER_WORKSPACE } from '../config';
 
 interface TableListProps {
     isUploadSuccess: boolean;
@@ -34,18 +34,27 @@ interface TableListProps {
         setIsModalOpen(true);
     };
 
-    // モーダルで削除を確認した後の処理
-    const confirmDelete = async () => {
-        try {
-            const deleteApiUrl = `${API_URL}/table/${DB_SCHEMA}/${selectedTable}`;
-            await axios.delete(deleteApiUrl);
-            setTables(tables.filter(table => table !== selectedTable)); // 削除されたテーブルをリストから除去
-            setIsModalOpen(false); // モーダルを閉じる
-        } catch (error) {
-            console.error('テーブルの削除に失敗しました', error);
-            setIsModalOpen(false); // エラーが発生してもモーダルを閉じる
-        }
-    };
+// モーダルで削除を確認した後の処理
+const confirmDelete = async () => {
+    try {
+        // レイヤー削除のAPI URL
+        const deleteLayerApiUrl = `${API_URL}/delete_layer/${GEOSERVER_WORKSPACE}/${selectedTable}`;
+        // レイヤー削除の実行
+        await axios.delete(deleteLayerApiUrl);
+
+        // テーブル削除のAPI URL
+        const deleteTableApiUrl = `${API_URL}/table/${DB_SCHEMA}/${selectedTable}`;
+        // テーブル削除の実行
+        await axios.delete(deleteTableApiUrl);
+
+        // 削除されたテーブルをリストから除去
+        setTables(tables.filter(table => table !== selectedTable));
+        setIsModalOpen(false); // モーダルを閉じる
+    } catch (error) {
+        console.error('テーブルまたはレイヤーの削除に失敗しました', error);
+        setIsModalOpen(false); // エラーが発生してもモーダルを閉じる
+    }
+};
 
     return (
         <div className="m-8">

@@ -6,8 +6,8 @@ import SideNav from "./ui/sidenav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "WebGIS light",
-  description: "ブラウザでGIS解析を実施するためのアプリケーション",
+  title: "LightGIS",
+  description: "An application for conducting GIS analysis in a browser",
 };
 
 export default function RootLayout({

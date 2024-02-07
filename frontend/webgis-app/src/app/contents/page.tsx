@@ -11,6 +11,9 @@ export default function Page() {
     const handleUploadSuccess = () => {
         setIsUploadSuccess(true);
     };
+    const initializeIsUploadSuccess = () => {
+        setIsUploadSuccess(false);
+    }
 
     const handleOpenModal = () => setModalOpen(true);
     const handleCloseModal = () => setModalOpen(false);
@@ -24,7 +27,7 @@ export default function Page() {
             >
                 データ追加
             </button>
-            <ImportModal isOpen={isModalOpen} onClose={handleCloseModal} onUploadSuccess={handleUploadSuccess}/>
+            <ImportModal isOpen={isModalOpen} onClose={handleCloseModal} onUploadSuccess={handleUploadSuccess} initializeIsUploadSuccess={initializeIsUploadSuccess}/>
             <TableList isUploadSuccess={isUploadSuccess}/> {/* TableList コンポーネントを追加 */}
         </div>
     );

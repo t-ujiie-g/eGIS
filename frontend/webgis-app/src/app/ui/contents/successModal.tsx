@@ -1,3 +1,4 @@
+import { initialize } from 'next/dist/server/lib/render-server';
 import React from 'react';
 
 interface SuccessModalProps {

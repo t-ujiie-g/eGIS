@@ -1,6 +1,11 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import axios from 'axios';
-import { API_URL, DB_SCHEMA } from './config';
+import {
+    API_URL,
+    DB_SCHEMA,
+    GEOSERVER_WORKSPACE,
+    GEOSERVER_DATASTORE,
+} from '../config';
 import SuccessModal from './successModal';
 
 
@@ -9,7 +14,7 @@ interface ImportPageProps {
     onUploadSuccess: () => void;
 }
 
-export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess }) => {
+export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess}) => {
     const [file, setFile] = useState<File | null>(null);
     const [tableName, setTableName] = useState<string>('');
     const [message, setMessage] = useState<string>('');
@@ -43,17 +48,29 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess
         try {
             // APIのURLにファイル形式とテーブル名を動的に設定
             const importApiUrl = `${API_URL}/${apiUrlSegment}/${DB_SCHEMA}/${tableName}`;
-            console.log(importApiUrl);
             const response = await axios.post(importApiUrl, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
             });
-            setMessage(response.data.message);
+            // データインポートが成功した場合、Geoserverにサービスを公開
+            if (response.status === 200 || response.status === 201) {
+                // Geoserverにサービスを公開するAPIのURL
+                const publishApiUrl = `${API_URL}/publish_service/?workspace_name=${encodeURIComponent(GEOSERVER_WORKSPACE)}&datastore_name=${encodeURIComponent(GEOSERVER_DATASTORE)}&table_name=${encodeURIComponent(tableName)}`;
+                const publishResponse = await axios.post(publishApiUrl, {}, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                setMessage(publishResponse.data.message);
+            } else {
+                setMessage('データのインポートに失敗しました。');
+            }
             setShowModal(true); // アップロード成功時にモーダルを表示
         } catch (error) {
             if (axios.isAxiosError(error) && error.response) {
-                setMessage(error.response.data.detail || 'エラーが発生しました。');
+                setMessage(error.response.data.detail.msg || 'エラーが発生しました。');
             } else {
                 setMessage('エラーが発生しました。');
             }
