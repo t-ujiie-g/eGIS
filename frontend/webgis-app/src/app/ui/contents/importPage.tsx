@@ -6,7 +6,7 @@ import {
     GEOSERVER_WORKSPACE,
     GEOSERVER_DATASTORE,
 } from '../config';
-import SuccessModal from './successModal';
+import SuccessModal from '../successModal';
 
 
 interface ImportPageProps {

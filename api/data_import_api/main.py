@@ -10,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, F
 from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Float, inspect, text
-from geoalchemy2 import Geometry
+from geoalchemy2 import Geometry, Geography
 from geoalchemy2.shape import from_shape
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.dialects.postgresql import JSONB
@@ -37,6 +37,13 @@ app.add_middleware(
 class DataStore(BaseModel):
     workspace_name: str
     datastore_name: str
+
+class BufferParameters(BaseModel):
+    schema_name: str
+    table_name: str
+    distance: float
+    unit: str  # 距離の単位を指定するためのフィールド
+    new_table_name: str
 
 @app.get("/schemas")
 def get_schemas():
@@ -109,49 +116,48 @@ async def import_geojson(schema_name: str, table_name: str, file: UploadFile = F
     if not file.filename.endswith('.geojson'):
         raise HTTPException(status_code=400, detail="Invalid file format")
 
+    # ファイルからGeoJSONを読み込む
     geojson = json.loads(file.file.read().decode('utf-8'))
-    features = geojson['features']
+    
+    # GeoDataFrameに変換
+    gdf = gpd.GeoDataFrame.from_features(geojson['features'])
+    
+    # GeoDataFrameにCRSが設定されていない場合、デフォルトでEPSG:4326を設定
+    if gdf.crs is None:
+        gdf.set_crs(epsg=4326, inplace=True)
+    else:
+        # 元のデータの座標系がEPSG:4326以外の場合、EPSG:4326に投影変換する
+        gdf = gdf.to_crs(epsg=4326)
 
-    # Get the CRS from the GeoJSON, if it exists
-    crs = geojson.get('crs', {})
-    srid = 4326  # Default to WGS84
-    if crs:
-        crs_name = crs.get('properties', {}).get('name', '')
-        try:
-            srid = CRS.from_string(crs_name).to_epsg()
-        except:
-            pass
+    srid = 4326  # WGS84
 
     metadata = MetaData()
 
-    # Create a new table with a geometry column and columns based on the properties of the GeoJSON
+    # 新しいテーブルを作成するための列を定義する
     columns = [Column('id', Integer, primary_key=True),
-               Column('geometry', Geometry('GEOMETRY', srid=srid))]
+               Column('geometry', Geography('GEOMETRY', srid=srid))]
 
-    # Add columns based on the properties of the first feature
-    if features:
-        properties = features[0]['properties']
-        for key, value in properties.items():
-            print(f"{key} {value}")
-            if is_integer_dtype(type(value)):
-                columns.append(Column(key, Integer))
-            elif is_float_dtype(type(value)):
-                columns.append(Column(key, Float))
-            elif is_object_dtype(type(value)):
-                columns.append(Column(key, String))
-            else:
-                columns.append(Column(key, String))
+    # GeoDataFrameのプロパティに基づいて列を追加する
+    if not gdf.empty:
+        for key, value in gdf.iloc[0].items():
+            if key != 'geometry':  # 'geometry'列は別途処理される
+                if pd.api.types.is_integer_dtype(value):
+                    columns.append(Column(key, Integer))
+                elif pd.api.types.is_float_dtype(value):
+                    columns.append(Column(key, Float))
+                else:
+                    columns.append(Column(key, String))
 
     table = Table(table_name, metadata, *columns, schema=schema_name)
     table.create(engine)
 
-    # Insert data into the table
+    # テーブルにデータを挿入する
     with engine.connect() as connection:
-        for feature in features:
-            geom = from_shape(shape(feature['geometry']), srid=srid)
-            properties = feature['properties']
-            properties['geometry'] = geom
-            connection.execute(table.insert().values(**properties))
+        for _, row in gdf.iterrows():
+            geom = from_shape(row['geometry'], srid=srid) if row['geometry'] else None
+            row_data = row.drop('geometry').to_dict()
+            row_data['geometry'] = geom
+            connection.execute(table.insert().values(**row_data))
         connection.commit()
 
     return {"message": "GeoJSON data imported successfully"}
@@ -182,15 +188,22 @@ async def import_shapefile(schema_name: str, table_name: str, file: UploadFile =
         # Read the shapefile into a GeoDataFrame
         gdf = gpd.read_file(shapefile_path)
 
+    # GeoDataFrameにCRSが設定されていない場合、デフォルトでEPSG:4326を設定
+    if gdf.crs is None:
+        gdf.set_crs(epsg=4326, inplace=True)
+    else:
+        # 元のデータの座標系がEPSG:4326以外の場合、EPSG:4326に投影変換する
+        gdf = gdf.to_crs(epsg=4326)
+
     # Get the CRS from the GeoDataFrame
-    srid = gdf.crs.to_epsg() if gdf.crs else 4326  # Default to WGS84
+    srid = 4326  # WGS84
 
     metadata = MetaData()
 
     # Create a new table with a geometry column and columns based on the GeoDataFrame
     columns = [
         Column('id', Integer, primary_key=True),
-        Column('geometry', Geometry('GEOMETRY', srid=srid)),
+        Column('geometry', Geography('GEOMETRY', srid=srid)),
     ]
 
     # Add columns based on the properties of the GeoDataFrame
@@ -320,3 +333,43 @@ async def delete_layer(workspace_name: str, layer_name: str):
     else:
         # GeoServerからのエラーレスポンスをそのまま返す
         return HTTPException(status_code=response.status_code, detail=response.text)
+
+
+# 空間解析
+@app.post("/create_buffer")
+def create_buffer_and_store(buffer_parameters: BufferParameters):
+    schema_name = buffer_parameters.schema_name
+    table_name = buffer_parameters.table_name
+    distance = buffer_parameters.distance
+    new_table_name = buffer_parameters.new_table_name
+    unit = buffer_parameters.unit  # 単位を取得
+
+    # 単位に基づいて適切な距離値を設定
+    if unit == "meters":
+        distance_expr = distance
+    elif unit == "kilometers":
+        distance_expr = distance * 1000  # キロメートルをメートルに変換
+    else:
+        # サポートされていない単位が指定された場合はエラーを返す
+        raise HTTPException(status_code=400, detail="Unsupported unit")
+
+    # 既存テーブルから列名を取得
+    inspector = inspect(engine)
+    columns = [column['name'] for column in inspector.get_columns(table_name, schema=schema_name) if column['name'] != 'geometry']
+
+    # 列名リストからSQLクエリのSELECT部分を生成
+    select_columns = ', '.join([f'"{col}"' for col in columns])
+
+    with engine.connect() as connection:
+        # 新しいテーブルを作成
+        connection.execute(
+            text(f"""
+                CREATE TABLE {quoted_name(schema_name, quote=True)}.{quoted_name(new_table_name, quote=True)} AS
+                SELECT 
+                    {select_columns}, 
+                    ST_Buffer(geometry, {distance_expr}) AS geometry
+                FROM {quoted_name(schema_name, quote=True)}.{quoted_name(table_name, quote=True)}
+            """)
+        )
+        connection.commit()
+    return {"message": f"バッファが作成され、{new_table_name}に格納されました。"}
