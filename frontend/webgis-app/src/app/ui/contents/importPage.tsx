@@ -12,13 +12,15 @@ import SuccessModal from '../successModal';
 interface ImportPageProps {
     onClose: () => void;
     onUploadSuccess: () => void;
+    initializeIsUploadSuccess: () => void;
 }
 
-export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess}) => {
+export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess, initializeIsUploadSuccess}) => {
     const [file, setFile] = useState<File | null>(null);
     const [tableName, setTableName] = useState<string>('');
     const [message, setMessage] = useState<string>('');
     const [showModal, setShowModal] = useState<boolean>(false); // モーダル表示状態の管理
+    initializeIsUploadSuccess();
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {

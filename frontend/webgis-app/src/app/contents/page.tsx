@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import ImportModal from '../ui/contents/importModal';
+import BasicModal from '../ui/basicModal';
 import TableList from '../ui/contents/tableList'; // TableList コンポーネントをインポート
+import ImportPage from '../ui/contents/importPage';
 
 export default function Page() {
     const [isModalOpen, setModalOpen] = useState(false);
@@ -27,7 +28,9 @@ export default function Page() {
             >
                 データ追加
             </button>
-            <ImportModal isOpen={isModalOpen} onClose={handleCloseModal} onUploadSuccess={handleUploadSuccess} initializeIsUploadSuccess={initializeIsUploadSuccess}/>
+            <BasicModal isOpen={isModalOpen} onClose={handleCloseModal}>
+                <ImportPage onClose={handleCloseModal} onUploadSuccess={handleUploadSuccess} initializeIsUploadSuccess={initializeIsUploadSuccess}/>
+            </BasicModal>
             <TableList isUploadSuccess={isUploadSuccess}/> {/* TableList コンポーネントを追加 */}
         </div>
     );

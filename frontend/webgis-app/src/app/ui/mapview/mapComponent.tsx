@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import L from 'leaflet';
 import axios from 'axios';
 import { API_URL, DB_SCHEMA, GEOSERVER_WORKSPACE, GEOSERVER_DATASTORE } from '../config';
-import AddModal from './addModal';
+import BasicModal from '../basicModal';
 import AddLayer from './addLayer';
 import CreateBuffer from './createBuffer';
 
@@ -44,12 +44,37 @@ const MapComponent: React.FC<MapComponentProps> = ({ handleOpenModal, isOpen, ha
       "Sentinel-2": satelliteLayer,
     };
     L.control.layers(baseMaps).addTo(initialMap);
-    setMap(initialMap);
 
-    return () => {
-      initialMap.remove();
-    };
-  }, []);
+  // カスタムコントロールを作成してマップに追加
+  const ResetViewControl = L.Control.extend({
+    options: {
+      position: 'topleft'
+    },
+    onAdd: function(map: L.Map) {
+      const button = L.DomUtil.create('button');
+      button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>'; // Heroiconsの家のアイコンを使用
+      button.style.backgroundColor = 'white';
+      button.style.width = '30px';
+      button.style.height = '30px';
+      button.style.border = 'none';
+      button.style.cursor = 'pointer';
+      L.DomEvent.addListener(button, 'click', function() {
+        map.setView([35.681236, 139.767125], 13);
+      });
+  
+      return button;
+    }
+  });
+  
+  const resetViewControl = new ResetViewControl();
+  resetViewControl.addTo(initialMap);
+
+  setMap(initialMap);
+
+  return () => {
+    initialMap.remove();
+  };
+}, []);
 
   // WMSレイヤーを追加する関数
   const addWmsLayer = (layerName: string) => {
@@ -111,12 +136,12 @@ const handleCreateBuffer = async (tableName: string, bufferDistance: number, uni
       >
         バッファ作成
       </button>
-      <AddModal isOpen={isOpen} onClose={handleCloseModal}>
+      <BasicModal isOpen={isOpen} onClose={handleCloseModal}>
         <AddLayer addWmsLayer={addWmsLayer} />
-      </AddModal>
-      <AddModal isOpen={isBufferOpen} onClose={closeBufferModal}>
+      </BasicModal>
+      <BasicModal isOpen={isBufferOpen} onClose={closeBufferModal}>
         <CreateBuffer onCreateBuffer={handleCreateBuffer} onClose={closeBufferModal} onBufferSuccess={handleBufferSuccess}/>
-      </AddModal>
+      </BasicModal>
       <div id="map" style={{ height: '800px', width: '100%', zIndex: 10 }}></div>
     </>
   );
