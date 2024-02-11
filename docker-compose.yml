@@ -5,7 +5,7 @@ services:
     image: egis-api
     tty: true
     stdin_open: true
-    command: ["./wait-for-it.sh", "db", "5432", "--", "uvicorn", "data_import_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["./wait-for-it.sh", "db", "5432", "--", "uvicorn", "egis_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     volumes:
       - ./api:/app
     ports:
@@ -20,6 +20,7 @@ services:
       - "5432:5432"
     volumes:
       - ./db/db-store:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_DB: egis
       POSTGRES_PASSWORD: password

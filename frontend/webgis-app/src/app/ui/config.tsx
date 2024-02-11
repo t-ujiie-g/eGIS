@@ -1,5 +1,5 @@
 // API関連
-export const API_URL = "http://localhost:8001";
+export const API_URL = "http://localhost:8000";
 export const DB_SCHEMA = "test_schema";
 
 export const GEOSERVER_URL = "http://localhost:8080/geoserver";
