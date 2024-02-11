@@ -7,6 +7,7 @@ import BasicModal from '../basicModal';
 import AddLayer from './addLayer';
 import CreateBuffer from './createBuffer';
 import LayerList from './layerList';
+import OpacityModal from './opacityModal';
 
 interface MapComponentProps {
   handleOpenModal: () => void;
@@ -47,6 +48,77 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, []);
 
+  // WFSレイヤーを追加し、スタイルを設定する関数
+  const addWfsLayer = async (layerName: string) => {
+    if (!map) return;
+
+    const url = `${GEOSERVER_URL}/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=${GEOSERVER_WORKSPACE}:${layerName}&outputFormat=application/json`;
+
+    try {
+      const response = await axios.get(url);
+      const data = response.data;
+
+      // データから最初のフィーチャーのジオメトリタイプを取得
+      const geometryType = data.features[0].geometry.type;
+      let paint: {};
+      let layerType: 'fill' | 'line' | 'circle';
+
+      switch (geometryType) {
+        case 'Polygon':
+        case 'MultiPolygon':
+          layerType = 'fill';
+          paint = {
+            'fill-color': '#00FFFF', // 水色
+            'fill-opacity': 0.5, // 50%の透過表示
+            'fill-outline-color': '#B0BEC5' // 枠線の色
+          };
+          break;
+        case 'LineString':
+        case 'MultiLineString':
+          layerType = 'line';
+          paint = {
+            'line-color': '#008000', // 緑色
+            'line-width': 2,
+            'line-opacity': 0.5
+          };
+          break;
+        case 'Point':
+        case 'MultiPoint':
+          layerType = 'circle';
+          paint = {
+            'circle-color': '#FF0000', // 赤色
+            'circle-radius': 5,
+            'circle-opacity': 0.5,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#B0BEC5' // 枠線の色
+          };
+          break;
+        default:
+          console.error('未対応のジオメトリタイプ:', geometryType);
+          return;
+      }
+
+      map.addSource(layerName, {
+        type: 'geojson',
+        data: data
+      });
+
+      map.addLayer({
+        id: layerName,
+        type: layerType,
+        source: layerName as any, // 型アサーションを使用してエラーを回避
+        paint: paint
+      });
+
+      // レイヤー名をステートに追加する際に、配列の先頭に追加
+      setLayers(prev => [layerName, ...prev]);
+      setLayerVisibility(prev => ({ ...prev, [layerName]: true }));
+
+    } catch (error) {
+      console.error('WFSレイヤーの読み込みに失敗:', error);
+    }
+  };
+
   // WMSレイヤーを追加する関数
   const addWmsLayer = (layerName: string) => {
     if (!map) return;
@@ -81,9 +153,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // レイヤーの表示/非表示を切り替える関数
   const toggleLayerVisibility = (layerName: string, isVisible: boolean) => {
-    if (!map || !map.getLayer(layerName)) return;
+    if (!map || !map.getLayer(`${layerName}`)) return;
 
-    map.setLayoutProperty(layerName, 'visibility', isVisible ? 'visible' : 'none');
+    map.setLayoutProperty(`${layerName}`, 'visibility', isVisible ? 'visible' : 'none');
     setLayerVisibility(prev => ({ ...prev, [layerName]: isVisible }));
   };
 
@@ -110,6 +182,33 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
+  // レイヤーの透過度を設定する関数
+  const setLayerOpacity = (layerName: string, opacity: number) => {
+    if (!map || !map.getLayer(layerName)) return;
+  
+    const layer = map.getLayer(layerName);
+    if (!layer) return;
+    const layerType = layer.type;
+    let opacityProperty = '';
+  
+    switch (layerType) {
+      case 'fill':
+        opacityProperty = 'fill-opacity';
+        break;
+      case 'line':
+        opacityProperty = 'line-opacity';
+        break;
+      case 'circle':
+        opacityProperty = 'circle-opacity';
+        break;
+      default:
+        console.error('未対応のレイヤータイプ:', layerType);
+        return;
+    }
+  
+    map.setPaintProperty(layerName, opacityProperty, opacity);
+  };
+
   // APIリクエストを実行する関数
   const handleCreateBuffer = async (tableName: string, bufferDistance: number, unit: 'meters' | 'kilometers', newTableName?: string) => {
     try {
@@ -133,7 +232,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
 
       console.log('GeoServerにサービス公開成功:', publishResponse.data);
-      addWmsLayer(newTableName || `${tableName}_buffer`);
+      addWfsLayer(newTableName || `${tableName}_buffer`);
 
     } catch (error: any) {
       console.error('エラー:', error.response ? error.response.data : error.message);
@@ -149,10 +248,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         handleOpenModal={handleOpenModal}
         openBufferModal={openBufferModal}
         removeLayer={removeLayer} // removeLayer関数をLayerListに渡す
+        setLayerOpacity={setLayerOpacity}
       />
       <div id="map" className="flex-grow" style={{ height: '800px', zIndex: 10 }}></div>
       <BasicModal isOpen={isOpen} onClose={handleCloseModal}>
-        <AddLayer addWmsLayer={addWmsLayer} />
+        <AddLayer addWmsLayer={addWfsLayer} />
       </BasicModal>
       <BasicModal isOpen={isBufferOpen} onClose={closeBufferModal}>
         <CreateBuffer onCreateBuffer={handleCreateBuffer} onClose={closeBufferModal} onBufferSuccess={handleBufferSuccess} />
