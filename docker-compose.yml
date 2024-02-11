@@ -1,46 +1,43 @@
 services:
   api:
     build: ./api
-    container_name: data-import-api
-    image: data-import-api
+    container_name: egis-api
+    image: egis-api
     tty: true
     stdin_open: true
     command: ["./wait-for-it.sh", "db", "5432", "--", "uvicorn", "data_import_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     volumes:
       - ./api:/app
     ports:
-      - "8001:8000"
+      - "8000:8000"
     depends_on:
       - db
 
   db:
     image: postgis/postgis:16-3.4
-    container_name: data-import-db
+    container_name: egis-db
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - ./db/db-store:/var/lib/postgresql/data
-      # - ./db/init:/docker-entrypoint-initdb.d
     environment:
-      POSTGRES_DB: data_import
+      POSTGRES_DB: egis
       POSTGRES_PASSWORD: password
 
   geoserver:
     image: docker.osgeo.org/geoserver:2.25.x
-    container_name: data-import-geoserver
+    container_name: egis-geoserver
     ports:
       - 8080:8080
     volumes:
-      - ./geoserver/data_dir:/opt/geoserver/data_dir
-      - ./geoserver/geowebcache_cache_dir:/opt/geoserver/data_dir/gwc
-      - ./geoserver/logs:/opt/geoserver/data_dir/logs
+      - ./geoserver/data_dir:/opt/geoserver_data
       - ./geoserver/web.xml:/opt/apache-tomcat-9.0.84/webapps/geoserver/WEB-INF/web.xml
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: nextjs-app
+    container_name: egis-frontend
     ports:
       - "3000:3000"
     volumes:
