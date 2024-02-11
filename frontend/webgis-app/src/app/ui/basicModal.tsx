@@ -15,7 +15,7 @@ const BasicModal: React.FC<ImportModalProps> = ({ isOpen, onClose, children}) =>
 
     return (
         // モーダルの背景を追加し、触れないようにする（Tailwind CSSを使用）
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             {/* モーダルのコンテンツ */}
             <div className="bg-white p-5 z-50 min-w-[500px] relative">
                 {/* 閉じるボタン（Heroiconを使用） */}

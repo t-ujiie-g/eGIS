@@ -31,22 +31,6 @@ const AddLayer: React.FC<AddLayerProps> = ({ addWmsLayer }) => {
   }, []);
 
   return (
-      // <div className="overflow-y-auto max-h-96">
-      //   <ul>
-      //     {tables.map((table, index) => (
-      //       <li key={index} className="flex justify-between items-center p-2 hover:bg-gray-100">
-      //         <span>{table}</span>
-      //         <button
-      //           // onClick={() => onAdd(table)}
-      //           className="ml-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-      //         >
-      //           追加
-      //         </button>
-      //       </li>
-      //     ))}
-      //   </ul>
-      // </div>
-
       <div className="m-8">
         <div className="overflow-x-auto">
             <table className="table-auto w-full">

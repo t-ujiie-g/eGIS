@@ -34,6 +34,7 @@ services:
       - ./geoserver/data_dir:/opt/geoserver/data_dir
       - ./geoserver/geowebcache_cache_dir:/opt/geoserver/data_dir/gwc
       - ./geoserver/logs:/opt/geoserver/data_dir/logs
+      - ./geoserver/web.xml:/opt/apache-tomcat-9.0.84/webapps/geoserver/WEB-INF/web.xml
 
   frontend:
     build:

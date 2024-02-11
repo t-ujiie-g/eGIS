@@ -6,7 +6,7 @@ import SideNav from "./ui/sidenav";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LightGIS",
+  title: "eGIS",
   description: "An application for conducting GIS analysis in a browser",
 };
 

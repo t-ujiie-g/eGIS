@@ -9,8 +9,8 @@ export default function SideNav() {
         className="mb-2 flex flex-col items-center justify-center rounded-md bg-blue-600 p-4 md:h-30"
         href="/"
       >
-        <GlobeAltIcon className="h-20 w-20 text-white mb-2" />
-        <span className="text-lg font-semibold text-white italic">LightGIS</span> {/* テキストサイズとフォントウェイトを調整 */}
+        <GlobeAltIcon className="h-14 w-14 text-white mb-2" />
+        <span className="text-4xl font-semibold text-white italic">eGIS</span> {/* テキストサイズとフォントウェイトを調整 */}
       </Link>
       <div className="flex grow flex-row justify-between space-x-2 md:flex-col md:space-x-0 md:space-y-2">
         <NavLinks />

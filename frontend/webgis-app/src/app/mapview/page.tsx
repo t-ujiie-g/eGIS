@@ -3,7 +3,6 @@
 import type { NextPage } from 'next';
 import dynamic from 'next/dynamic';
 import React, { useState } from 'react';
-import AddModal from '../ui/mapview/addModal';
 
 // SSRを無効にしてMapComponentを動的にインポート
 const MapComponent = dynamic(() => import('../ui/mapview/mapComponent'), {
