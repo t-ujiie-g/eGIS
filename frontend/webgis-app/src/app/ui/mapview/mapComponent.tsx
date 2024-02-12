@@ -7,7 +7,6 @@ import BasicModal from '../basicModal';
 import AddLayer from './addLayer';
 import CreateBuffer from './createBuffer';
 import LayerList from './layerList';
-import OpacityModal from './opacityModal';
 
 interface MapComponentProps {
   handleOpenModal: () => void;
@@ -209,6 +208,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.setPaintProperty(layerName, opacityProperty, opacity);
   };
 
+  // レイヤーの色を設定する関数
+  const setLayerColor = (layerName: string, color: string): void => {
+    if (!map || !map.getLayer(layerName)) return;
+
+    const layer = map.getLayer(layerName);
+    if (!layer) return;
+    const layerType = layer.type;
+    let colorProperty = '';
+
+    switch (layerType) {
+      case 'fill':
+        colorProperty = 'fill-color';
+        break;
+      case 'line':
+        colorProperty = 'line-color';
+        break;
+      case 'circle':
+        colorProperty = 'circle-color';
+        break;
+      case 'symbol':
+        // シンボルレイヤーの場合、テキストやアイコンの色を設定することができます。
+        // ここではテキストの色を設定する例を示します。
+        colorProperty = 'text-color';
+        break;
+      default:
+        console.error('未対応のレイヤータイプ:', layerType);
+        return;
+    }
+
+    map.setPaintProperty(layerName, colorProperty, color);
+  };
+
   // APIリクエストを実行する関数
   const handleCreateBuffer = async (tableName: string, bufferDistance: number, unit: 'meters' | 'kilometers', newTableName?: string) => {
     try {
@@ -249,6 +280,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         openBufferModal={openBufferModal}
         removeLayer={removeLayer} // removeLayer関数をLayerListに渡す
         setLayerOpacity={setLayerOpacity}
+        setLayerColor={setLayerColor}
       />
       <div id="map" className="flex-grow" style={{ height: '800px', zIndex: 10 }}></div>
       <BasicModal isOpen={isOpen} onClose={handleCloseModal}>

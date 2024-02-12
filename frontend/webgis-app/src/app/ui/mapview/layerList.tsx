@@ -1,7 +1,7 @@
 import React, {useState} from 'react';
 import { XMarkIcon, EllipsisHorizontalCircleIcon } from '@heroicons/react/24/solid'; // XIconをインポート
 import BasicModal from '../basicModal';
-import OpacityModal from './opacityModal';
+import StyleModal from './styleModal';
 
 interface LayerListProps {
   layers: string[];
@@ -11,6 +11,7 @@ interface LayerListProps {
   openBufferModal: () => void;
   removeLayer: (layerName: string) => void; // レイヤー削除関数をpropsとして追加
   setLayerOpacity: (layerName: string, opacity: number) => void;
+  setLayerColor: (layerName: string, color: string) => void;
 }
 
 const LayerList: React.FC<LayerListProps> = ({
@@ -21,6 +22,7 @@ const LayerList: React.FC<LayerListProps> = ({
   openBufferModal,
   removeLayer, // propsから削除関数を受け取る
   setLayerOpacity,
+  setLayerColor,
 }) => {
   const [visibleMenu, setVisibleMenu] = useState<string | null>(null);
   const [isOpacityOpen, setOpacityOpen] = useState(false);
@@ -62,11 +64,12 @@ const LayerList: React.FC<LayerListProps> = ({
       {layers.map(layerName => (
         <div key={layerName} className="flex items-center justify-between mb-2">
           <BasicModal isOpen={isOpacityOpen} onClose={closeOpacityModal}>
-            <OpacityModal
+            <StyleModal
               isOpen={isOpacityOpen}
               onClose={closeOpacityModal}
               layerName={layerName}
               setLayerOpacity={setLayerOpacity}
+              setLayerColor={setLayerColor}
             />
           </BasicModal>
           <div className="flex items-center">
@@ -86,7 +89,7 @@ const LayerList: React.FC<LayerListProps> = ({
             {isMenuVisible(layerName) && (
               <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg z-40 rounded">
                 <ul>
-                  <li className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer" onClick={() => openOpacityModal(layerName)}>透過表示設定</li>
+                  <li className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer" onClick={() => openOpacityModal(layerName)}>スタイル設定</li>
                   <li className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer" onClick={() => removeLayer(layerName)}>レイヤー削除</li>
                 </ul>
               </div>
