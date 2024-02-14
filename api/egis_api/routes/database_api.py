@@ -133,6 +133,12 @@ async def import_geojson(schema_name: str, table_name: str, file: UploadFile = F
             connection.execute(table.insert().values(**row_data))
         connection.commit()
 
+        # 空間インデックスを作成
+        connection.execute(text(f"""
+            CREATE INDEX ON {quoted_name(schema_name, quote=True)}.{quoted_name(table_name, quote=True)} USING GIST (geometry);
+        """))
+        connection.commit()
+
     return {"message": "GeoJSON data imported successfully"}
 
 @router.post("/import_shapefile/{schema_name}/{table_name}")
@@ -202,6 +208,12 @@ async def import_shapefile(schema_name: str, table_name: str, file: UploadFile =
             row_data = row.to_dict()
             row_data['geometry'] = geom
             connection.execute(table.insert().values(**row_data))
+        connection.commit()
+
+        # 空間インデックスを作成
+        connection.execute(text(f"""
+            CREATE INDEX ON {quoted_name(schema_name, quote=True)}.{quoted_name(table_name, quote=True)} USING GIST (geometry);
+        """))
         connection.commit()
 
     return {"message": "Shapefile data imported successfully"}
