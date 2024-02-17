@@ -7,6 +7,8 @@ import BasicModal from '../basicModal';
 import AddLayer from './addLayer';
 import CreateBuffer from './createBuffer';
 import LayerList from './layerList';
+import ClipModal from './clipModal';
+import EraseModal from './eraseModal';
 
 interface MapComponentProps {
   handleOpenModal: () => void;
@@ -16,6 +18,14 @@ interface MapComponentProps {
   isBufferOpen: boolean;
   closeBufferModal: () => void;
   handleBufferSuccess: () => void;
+  openClipModal: () => void;
+  isClipOpen: boolean;
+  closeClipModal: () => void;
+  handleClipSuccess: () => void;
+  openEraseModal: () => void;
+  isEraseOpen: boolean;
+  closeEraseModal: () => void;
+  handleEraseSuccess: () => void;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
@@ -26,6 +36,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   isBufferOpen,
   closeBufferModal,
   handleBufferSuccess,
+  openClipModal,
+  isClipOpen,
+  closeClipModal,
+  handleClipSuccess,
+  openEraseModal,
+  isEraseOpen,
+  closeEraseModal,
+  handleEraseSuccess,
 }) => {
   const [map, setMap] = useState<maplibregl.Map>();
   const [mapStyle, setMapStyle] = useState('https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'); // 初期スタイル
@@ -270,6 +288,64 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  // APIリクエストを実行する関数（クリップ）
+  const handleClip = async (tableName: string, clipTableName: string, newTableName?: string) => {
+    try {
+      const url = `${API_URL}/clip`;
+      const clipResponse = await axios.post(url, {
+        schema_name: DB_SCHEMA,
+        clippee_table_name: tableName,
+        clipper_table_name: clipTableName,
+        new_table_name: newTableName,
+      });
+
+      console.log('クリップ成功:', clipResponse.data);
+
+      // クリップが成功した場合、Geoserverにサービスを公開
+      const publishApiUrl = `${API_URL}/publish_service/?workspace_name=${encodeURIComponent(GEOSERVER_WORKSPACE)}&datastore_name=${encodeURIComponent(GEOSERVER_DATASTORE)}&table_name=${encodeURIComponent(newTableName || `${tableName}_clip`)}`;
+      const publishResponse = await axios.post(publishApiUrl, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('GeoServerにサービス公開成功:', publishResponse.data);
+      addWfsLayer(newTableName || `${tableName}_clip`);
+
+    } catch (error: any) {
+      console.error('エラー:', error.response ? error.response.data : error.message);
+    }
+  };
+
+  // APIリクエストを実行する関数（イレース）
+  const handleErase = async (tableName: string, eraseTableName: string, newTableName?: string) => {
+    try {
+      const url = `${API_URL}/erase`;
+      const clipResponse = await axios.post(url, {
+        schema_name: DB_SCHEMA,
+        erasee_table_name: tableName,
+        eraser_table_name: eraseTableName,
+        new_table_name: newTableName,
+      });
+
+      console.log('イレース成功:', clipResponse.data);
+
+      // クリップが成功した場合、Geoserverにサービスを公開
+      const publishApiUrl = `${API_URL}/publish_service/?workspace_name=${encodeURIComponent(GEOSERVER_WORKSPACE)}&datastore_name=${encodeURIComponent(GEOSERVER_DATASTORE)}&table_name=${encodeURIComponent(newTableName || `${tableName}_erase`)}`;
+      const publishResponse = await axios.post(publishApiUrl, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('GeoServerにサービス公開成功:', publishResponse.data);
+      addWfsLayer(newTableName || `${tableName}_erase`);
+
+    } catch (error: any) {
+      console.error('エラー:', error.response ? error.response.data : error.message);
+    }
+  };
+
   return (
     <div className="flex">
       <LayerList
@@ -278,6 +354,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         toggleLayerVisibility={toggleLayerVisibility}
         handleOpenModal={handleOpenModal}
         openBufferModal={openBufferModal}
+        openClipModal={openClipModal}
+        openEraseModal={openEraseModal}
         removeLayer={removeLayer} // removeLayer関数をLayerListに渡す
         setLayerOpacity={setLayerOpacity}
         setLayerColor={setLayerColor}
@@ -287,7 +365,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         <AddLayer addWmsLayer={addWfsLayer} />
       </BasicModal>
       <BasicModal isOpen={isBufferOpen} onClose={closeBufferModal}>
-        <CreateBuffer onCreateBuffer={handleCreateBuffer} onClose={closeBufferModal} onBufferSuccess={handleBufferSuccess} />
+        <CreateBuffer layers={layers} onCreateBuffer={handleCreateBuffer} onClose={closeBufferModal} onBufferSuccess={handleBufferSuccess} />
+      </BasicModal>
+      <BasicModal isOpen={isClipOpen} onClose={closeClipModal}>
+        <ClipModal layers={layers} onCreateClip={handleClip} onClose={closeClipModal} onClipSuccess={handleClipSuccess} />
+      </BasicModal>
+      <BasicModal isOpen={isEraseOpen} onClose={closeEraseModal}>
+        <EraseModal layers={layers} onCreateErase={handleErase} onClose={closeEraseModal} onEraseSuccess={handleEraseSuccess} />
       </BasicModal>
     </div>
   );

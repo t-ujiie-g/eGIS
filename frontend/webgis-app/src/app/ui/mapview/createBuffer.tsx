@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import SuccessModal from '../successModal';
 
 interface CreateBufferProps {
+  layers: string[]; // レイヤー名のリストを追加
   onCreateBuffer: (tableName: string, bufferDistance: number, unit: 'meters' | 'kilometers', newTableName?: string) => void;
   onClose: () => void;
   onBufferSuccess: () => void;
 }
 
-const CreateBuffer: React.FC<CreateBufferProps> = ({ onCreateBuffer, onClose, onBufferSuccess }) => {
+const CreateBuffer: React.FC<CreateBufferProps> = ({ layers, onCreateBuffer, onClose, onBufferSuccess }) => {
   const [tableName, setTableName] = useState('');
   const [bufferDistance, setBufferDistance] = useState('');
   const [unit, setUnit] = useState<'meters' | 'kilometers'>('meters');
@@ -36,15 +37,19 @@ const CreateBuffer: React.FC<CreateBufferProps> = ({ onCreateBuffer, onClose, on
     <div>
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="tableName" className="block text-sm font-medium text-gray-700">入力テーブル名</label>
-        <input
-          type="text"
-          id="tableName"
-          value={tableName}
-          onChange={(e) => setTableName(e.target.value)}
-          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-          required
-        />
+      <label htmlFor="tableName" className="block text-sm font-medium text-gray-700">入力テーブル名</label>
+          <select
+            id="tableName"
+            value={tableName}
+            onChange={(e) => setTableName(e.target.value)}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+            required
+          >
+            <option value="">選択してください</option>
+            {layers.map((layer) => (
+              <option key={layer} value={layer}>{layer}</option>
+            ))}
+          </select>
       </div>
       <div>
         <label htmlFor="bufferDistance" className="block text-sm font-medium text-gray-700">バッファー距離</label>
