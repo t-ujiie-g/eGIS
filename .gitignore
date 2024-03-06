@@ -4,3 +4,5 @@
 **/db-store
 
 **/data_dir
+
+**/.env

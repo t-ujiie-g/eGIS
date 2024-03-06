@@ -5,6 +5,7 @@ import {
   DocumentTextIcon,
   FolderIcon,
   MapIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
@@ -20,7 +21,8 @@ const links = [
     icon: DocumentTextIcon,
   },
   { name: 'Contents', href: '/contents', icon: FolderIcon },
-  { name: 'MapView', href: '/mapview', icon: MapIcon},
+  { name: 'MapView', href: '/mapview', icon: MapIcon },
+  { name: '3DView', href: '/scene', icon: BuildingOffice2Icon },
 ];
 
 export default function NavLinks() {
