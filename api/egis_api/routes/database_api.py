@@ -7,14 +7,18 @@ import zipfile
 import json
 import io
 
-from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File
-from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Float, inspect, text
+from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File, BackgroundTasks
+from fastapi.responses import FileResponse
+from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Float, inspect, text, inspect
 from geoalchemy2 import Geometry, Geography
 from geoalchemy2.shape import from_shape
 from sqlalchemy.sql.sqltypes import NullType
 from sqlalchemy.sql.elements import quoted_name
 import pandas as pd
 import geopandas as gpd
+
+import fiona
+fiona.drvsupport.supported_drivers["FlatGeobuf"] = "rw"
 
 router = APIRouter()
 
@@ -229,3 +233,66 @@ def delete_table(schema_name: str, table_name: str):
     table = Table(table_name, metadata, autoload_with=engine, schema=schema_name)
     table.drop(engine)
     return {"message": f"Table {table_name} deleted successfully"}
+
+@router.post("/import_flatgeobuf/{schema_name}/{table_name}")
+async def import_flatgeobuf(schema_name: str, table_name: str, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    if not file.filename.endswith('.fgb'):
+        raise HTTPException(status_code=400, detail="Invalid file format")
+
+    # 一時ファイルとしてFlatGeobufファイルを保存
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".fgb") as tmpfile:
+        contents = await file.read()
+        tmpfile.write(contents)
+        tmpfile_path = tmpfile.name
+
+    # 一時ファイルからGeoDataFrameを読み込む
+    gdf = gpd.read_file(tmpfile_path)
+
+    # GeoDataFrameにCRSが設定されていない場合、デフォルトでEPSG:4326を設定
+    if gdf.crs is None:
+        gdf.set_crs(epsg=4326, inplace=True)
+    else:
+        # 元のデータの座標系がEPSG:4326以外の場合、EPSG:4326に投影変換する
+        gdf = gdf.to_crs(epsg=4326)
+
+    srid = 4326  # WGS84
+
+    metadata = MetaData()
+
+    # 新しいテーブルを作成するための列を定義する
+    columns = [Column('id', Integer, primary_key=True),
+               Column('geometry', Geography('GEOMETRY', srid=srid))]
+
+    # GeoDataFrameのプロパティに基づいて列を追加する
+    if not gdf.empty:
+        for key, value in gdf.iloc[0].items():
+            if key != 'geometry':  # 'geometry'列は別途処理される
+                if pd.api.types.is_integer_dtype(value):
+                    columns.append(Column(key, Integer))
+                elif pd.api.types.is_float_dtype(value):
+                    columns.append(Column(key, Float))
+                else:
+                    columns.append(Column(key, String))
+
+    table = Table(table_name, metadata, *columns, schema=schema_name)
+    table.create(engine)
+
+    # テーブルにデータを挿入する
+    with engine.connect() as connection:
+        for _, row in gdf.iterrows():
+            geom = from_shape(row['geometry'], srid=srid) if row['geometry'] else None
+            row_data = row.drop('geometry').to_dict()
+            row_data['geometry'] = geom
+            connection.execute(table.insert().values(**row_data))
+        connection.commit()
+
+        # 空間インデックスを作成
+        connection.execute(text(f"""
+            CREATE INDEX ON {quoted_name(schema_name, quote=True)}.{quoted_name(table_name, quote=True)} USING GIST (geometry);
+        """))
+        connection.commit()
+
+    # 一時ファイルを削除するタスクを追加
+    background_tasks.add_task(os.unlink, tmpfile_path)
+
+    return {"message": "FlatGeobuf data imported successfully"}

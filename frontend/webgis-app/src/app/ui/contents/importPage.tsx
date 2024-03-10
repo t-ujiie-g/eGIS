@@ -45,7 +45,17 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess
         const fileTypeElement = document.querySelector('select');
         const fileType = fileTypeElement ? fileTypeElement.value : 'geojson'; // デフォルト値を設定
         // ファイル形式に基づいてAPIのURLを変更
-        const apiUrlSegment = fileType === 'shapefile' ? 'import_shapefile' : 'import_geojson';
+        let apiUrlSegment = '';
+        switch (fileType) {
+            case 'shapefile':
+                apiUrlSegment = 'import_shapefile';
+                break;
+            case 'FlatGeoBuf':
+                apiUrlSegment = 'import_flatgeobuf';
+                break;
+            default:
+                apiUrlSegment = 'import_geojson';
+        }
 
         try {
             // APIのURLにファイル形式とテーブル名を動的に設定
@@ -89,6 +99,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onClose, onUploadSuccess
                     <select className="block w-full p-2 text-sm text-gray-900 bg-gray-50 rounded border border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                         <option value="geojson">GeoJSON</option>
                         <option value="shapefile">シェープファイル</option>
+                        <option value="FlatGeoBuf">FlatGeoBuf</option> {/* FlatGeoBufのオプションを追加 */}
                     </select>
                 </div>
                 <input type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-500
