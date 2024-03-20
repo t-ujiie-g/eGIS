@@ -14,16 +14,20 @@ services:
       - db
 
   db:
-    image: postgis/postgis:16-3.4
+    # image: postgis/postgis:16-3.4
+    image: 3dcitydb/3dcitydb-pg
     container_name: egis-db
     ports:
       - "5432:5432"
     volumes:
       - ./db/db-store:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d
+      # - ./db/init:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_DB: egis
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
+      SRID: 4327
+      POSTGIS_SFCGAL: true # PostGIS SFCGALサポートを有効にする
 
   geoserver:
     image: docker.osgeo.org/geoserver:2.25.x
@@ -32,7 +36,7 @@ services:
       - 8080:8080
     volumes:
       - ./geoserver/data_dir:/opt/geoserver_data
-      - ./geoserver/web.xml:/opt/apache-tomcat-9.0.84/webapps/geoserver/WEB-INF/web.xml
+      - ./geoserver/web.xml:/opt/apache-tomcat-9.0.86/webapps/geoserver/WEB-INF/web.xml
 
   frontend:
     build:
@@ -49,3 +53,20 @@ services:
       - NODE_ENV=development
     depends_on:
       - api
+
+  wfs:
+    image: 3dcitydb/wfs:latest
+    container_name: egis-wfs
+    ports:
+      - "8081:8080"
+    environment:
+      CITYDB_TYPE: postgresql
+      CITYDB_HOST: db
+      CITYDB_PORT: 5432
+      CITYDB_NAME: egis
+      CITYDB_SCHEMA: citydb
+      CITYDB_USERNAME: postgres
+      CITYDB_PASSWORD: password
+      WFS_CONTEXT_PATH: wfs
+    depends_on:
+      - db

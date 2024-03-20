@@ -1,7 +1,15 @@
-from fastapi import APIRouter, HTTPException
+import subprocess
+import zipfile
+import os
+import asyncio
+import shutil
+from tempfile import TemporaryDirectory
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, File, UploadFile
 from sqlalchemy import inspect, text
 from sqlalchemy.sql.elements import quoted_name
 from pydantic import BaseModel
+from .. import config
 
 from ..database import engine
 
@@ -146,3 +154,42 @@ def erase_feature(erase_parameters: EraseParameters):
         connection.commit()
 
     return {"message": f"イレースが完了し、結果が{new_table_name}に格納されました。"}
+
+def import_citygml_to_3dcitydb(citygml_file_path: str):
+    # Importer/Exporter CLIコマンドの構築
+    command = [
+        "impexp", "import",
+        "-H", config.DB_HOST,
+        "-P", config.DB_PORT,
+        "-d", config.DB_NAME,
+        "-u", config.DB_USER_NAME,
+        "-p", config.DB_USER_PASS,
+        citygml_file_path
+    ]
+    
+    # コマンドの実行
+    result = subprocess.run(command, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"CityGML import failed: {result.stderr}")
+    
+    return result.stdout
+
+@router.post("/import_citygml")
+async def import_citygml(file: UploadFile = File(...)):
+    background_tasks = BackgroundTasks()
+    
+    # 一時ディレクトリの作成
+    with TemporaryDirectory() as temp_dir:
+        # ZIPファイルの保存先パス
+        zip_path = os.path.join(temp_dir, file.filename)
+        
+        # ZIPファイルの保存
+        with open(zip_path, 'wb') as f:
+            f.write(await file.read())
+        
+        # 同期処理でCityGMLインポート処理を実行
+        import_citygml_to_3dcitydb(zip_path)
+    
+    # 一時ディレクトリはwithブロックを抜けると自動的に削除されます
+    return {"message": "CityGML import started successfully."}
